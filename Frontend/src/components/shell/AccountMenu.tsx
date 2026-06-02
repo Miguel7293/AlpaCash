@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+
 import { motion, AnimatePresence } from "motion/react";
 import { User, ChevronDown, LogOut } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Role } from "@/lib/supabase/types";
+import { ProfileModal } from "../modals/ProfileModal";
 
 type AccountMenuProps = {
   nombre: string;
@@ -81,8 +82,9 @@ export function AccountMenu({
   onSignOut,
   variant = "pill",
 }: AccountMenuProps) {
-  const router = useRouter();
+
   const [open, setOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const styles = getVariantStyles(variant);
 
@@ -188,7 +190,7 @@ export function AccountMenu({
                 className="rounded-xl px-3 py-2.5 cursor-pointer hover:bg-[var(--ivory)] transition-colors"
                 onClick={() => {
                   setOpen(false);
-                  router.push("/profile");
+                  setProfileOpen(true);
                 }}
               >
                 <User className="w-4 h-4 mr-2.5 text-[var(--teal-deep)]" />
@@ -213,6 +215,11 @@ export function AccountMenu({
           </DropdownMenuContent>
         )}
       </AnimatePresence>
+      <ProfileModal
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        onSignOut={onSignOut}
+      />
     </DropdownMenu>
   );
 }

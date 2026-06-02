@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/hooks/useAuth";
 import { AccountMenu } from "@/components/shell/AccountMenu";
 import { AuthRequireModal } from "./modals/AuthRequireModal";
 import { toast } from "sonner";
+import { useFavorites } from "@/lib/hooks/useFavorites";
 
 type Lot = {
   code: string;
@@ -43,11 +44,6 @@ type Filters = {
   maxPrice: number;
 };
 
-
-const CATEGORIES: Lot["category"][] = ["Súper Baby", "Baby", "Fleece", "Medium Fleece", "Huarizo", "Gruesa"];
-const COLORS = ["Blanco", "Beige", "Marrón claro", "Marrón", "Negro", "Mixto"];
-const REGIONS = ["Puno", "Cusco", "Arequipa", "Apurímac"];
-const QUALITIES: Lot["quality"][] = ["Validada", "Certificada", "Certificable", "En revisión"];
 
 const qualityStyles: Record<Lot["quality"], string> = {
   Validada: "bg-emerald-50 text-emerald-700 border-emerald-100",
@@ -89,6 +85,7 @@ export function Marketplace({ onBack }: { onBack?: () => void }) {
   const { items: cartItems, addItem, count } = useCart();
   const { lots: dbLots, loading } = useMarketplaceLots();
   const { user, nombre, role, signOut } = useAuth();
+  const { favoriteIds, isFavorite, toggleFavorite } = useFavorites();
 
   const activeLots = useMemo<LotExt[]>(() => {
     if (dbLots && dbLots.length > 0) {
@@ -113,6 +110,30 @@ export function Marketplace({ onBack }: { onBack?: () => void }) {
     }
     return [];
   }, [dbLots]);
+
+  const dynamicCategories = useMemo(() => {
+    const set = new Set<string>();
+    activeLots.forEach((l) => { if (l.category) set.add(l.category); });
+    return Array.from(set).sort();
+  }, [activeLots]);
+
+  const dynamicColors = useMemo(() => {
+    const set = new Set<string>();
+    activeLots.forEach((l) => { if (l.color) set.add(l.color); });
+    return Array.from(set).sort();
+  }, [activeLots]);
+
+  const dynamicRegions = useMemo(() => {
+    const set = new Set<string>();
+    activeLots.forEach((l) => { if (l.region) set.add(l.region); });
+    return Array.from(set).sort();
+  }, [activeLots]);
+
+  const dynamicQualities = useMemo(() => {
+    const set = new Set<string>();
+    activeLots.forEach((l) => { if (l.quality) set.add(l.quality); });
+    return Array.from(set).sort();
+  }, [activeLots]);
 
   const isInCart = (code: string) => cartItems.some((c) => c.id === code);
   const handleAdd = (l: LotExt) => {
@@ -185,7 +206,7 @@ export function Marketplace({ onBack }: { onBack?: () => void }) {
     });
   };
 
-  const openLotDetail = (lot: Lot) => {
+  const openLotDetail = (lot: LotExt) => {
     setDetailLot({
       id: lot.code,
       cat: lot.category,
@@ -195,6 +216,8 @@ export function Marketplace({ onBack }: { onBack?: () => void }) {
       price: lot.price,
       prod: lot.verifiedProducer ? "Productor verificado" : "Productor (pendiente)",
       grade: lot.quality,
+      recordId: lot.recordId,
+      productorId: lot.productorId,
     });
     setLotOpen(true);
   };
@@ -240,7 +263,7 @@ export function Marketplace({ onBack }: { onBack?: () => void }) {
               </Button>
             )}
             <Button variant="ghost" className="text-[var(--teal-deep)] hover:bg-[var(--ivory-2)] rounded-full px-3">
-              <Heart className="w-4 h-4 mr-1.5" /> 4
+              <Heart className="w-4 h-4 mr-1.5 fill-current text-[var(--terracotta)]" /> {favoriteIds.length}
             </Button>
             <Button onClick={() => { if (!user) { setAuthModalOpen(true); } else { setCartOpen(true); } }} className="bg-[var(--teal-deep)] hover:bg-[var(--teal-700)] text-[var(--ivory)] rounded-full">
               <ShoppingCart className="w-4 h-4 mr-1.5" /> Carrito ({count})
@@ -262,10 +285,10 @@ export function Marketplace({ onBack }: { onBack?: () => void }) {
               </button>
             </div>
 
-            <FilterGroup title="Categoría" items={CATEGORIES} selected={filters.categories} onToggle={(v) => toggleSet("categories", v)} />
-            <FilterGroup title="Calidad / Validación" items={QUALITIES} selected={filters.qualities} onToggle={(v) => toggleSet("qualities", v)} />
-            <FilterGroup title="Color" items={COLORS} selected={filters.colors} onToggle={(v) => toggleSet("colors", v)} />
-            <FilterGroup title="Región" items={REGIONS} selected={filters.regions} onToggle={(v) => toggleSet("regions", v)} />
+            <FilterGroup title="Categoría" items={dynamicCategories} selected={filters.categories} onToggle={(v) => toggleSet("categories", v)} />
+            <FilterGroup title="Calidad / Validación" items={dynamicQualities} selected={filters.qualities} onToggle={(v) => toggleSet("qualities", v)} />
+            <FilterGroup title="Color" items={dynamicColors} selected={filters.colors} onToggle={(v) => toggleSet("colors", v)} />
+            <FilterGroup title="Región" items={dynamicRegions} selected={filters.regions} onToggle={(v) => toggleSet("regions", v)} />
 
             <div>
               <div className="text-xs uppercase tracking-wide text-[var(--muted-foreground)] mb-2">Precio S/ / lb</div>
@@ -346,6 +369,8 @@ export function Marketplace({ onBack }: { onBack?: () => void }) {
                   onView={() => openLotDetail(l)}
                   inCart={isInCart(l.code)}
                   onAdd={() => handleAdd(l)}
+                  isFav={l.recordId ? isFavorite(l.recordId) : false}
+                  onFav={() => l.recordId && toggleFavorite(l.recordId)}
                 />
               ))}
             </div>
@@ -360,6 +385,8 @@ export function Marketplace({ onBack }: { onBack?: () => void }) {
                   onView={() => openLotDetail(l)}
                   inCart={isInCart(l.code)}
                   onAdd={() => handleAdd(l)}
+                  isFav={l.recordId ? isFavorite(l.recordId) : false}
+                  onFav={() => l.recordId && toggleFavorite(l.recordId)}
                 />
               ))}
             </div>
@@ -490,14 +517,22 @@ function PriceDelta({ price, market }: { price: number; market: number }) {
   return <span className={`text-[10px] ${cls}`}>{label}</span>;
 }
 
-function LotCard({ l, compare, onCompare, onView, inCart, onAdd }: { l: Lot; compare: boolean; onCompare: () => void; onView: () => void; inCart: boolean; onAdd: () => void }) {
+function LotCard({ l, compare, onCompare, onView, inCart, onAdd, isFav, onFav }: { l: LotExt; compare: boolean; onCompare: () => void; onView: () => void; inCart: boolean; onAdd: () => void; isFav: boolean; onFav: () => void }) {
   return (
     <article className="bg-white rounded-2xl border border-[var(--border)] overflow-hidden flex flex-col hover:shadow-xl hover:-translate-y-0.5 transition-all group">
       <div className="relative aspect-[4/3] bg-[var(--ivory-2)] overflow-hidden">
         <ImageWithFallback src={l.image} alt={`Lote ${l.code}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
         <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-white/95 text-xs text-[var(--teal-deep)]" style={{ fontWeight: 500 }}>{l.category}</div>
-        <button className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/95 flex items-center justify-center text-[var(--teal-deep)] hover:text-[var(--terracotta)]">
-          <Heart className="w-4 h-4" />
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onFav();
+          }}
+          className={`absolute top-3 right-3 w-8 h-8 rounded-full bg-white/95 flex items-center justify-center border border-[var(--border)] transition-colors ${
+            isFav ? "text-[var(--terracotta)] bg-red-50 border-[var(--terracotta)]" : "text-[var(--teal-deep)] hover:text-[var(--terracotta)]"
+          }`}
+        >
+          <Heart className={`w-4 h-4 ${isFav ? "fill-current" : ""}`} />
         </button>
         {l.verifiedProducer && (
           <div className="absolute bottom-3 left-3 inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-[var(--teal-deep)]/90 text-[var(--ivory)] backdrop-blur">
@@ -546,7 +581,7 @@ function LotCard({ l, compare, onCompare, onView, inCart, onAdd }: { l: Lot; com
   );
 }
 
-function LotRow({ l, compare, onCompare, onView, inCart, onAdd }: { l: Lot; compare: boolean; onCompare: () => void; onView: () => void; inCart: boolean; onAdd: () => void }) {
+function LotRow({ l, compare, onCompare, onView, inCart, onAdd, isFav, onFav }: { l: LotExt; compare: boolean; onCompare: () => void; onView: () => void; inCart: boolean; onAdd: () => void; isFav: boolean; onFav: () => void }) {
   return (
     <article className="bg-white rounded-2xl border border-[var(--border)] p-4 flex gap-4 hover:shadow-md transition-shadow">
       <div className="relative w-32 h-32 rounded-xl overflow-hidden shrink-0 bg-[var(--ivory-2)]">
@@ -578,13 +613,23 @@ function LotRow({ l, compare, onCompare, onView, inCart, onAdd }: { l: Lot; comp
         <div className="col-span-12 md:col-span-2 flex md:flex-col gap-2">
           <button onClick={onCompare} className={`flex-1 text-xs py-2 rounded-full border ${compare ? "bg-[var(--teal-deep)] text-[var(--ivory)] border-[var(--teal-deep)]" : "border-[var(--border)] text-[var(--teal-deep)]"}`}>Comparar</button>
           <button onClick={onView} className="flex-1 text-xs py-2 rounded-full border border-[var(--border)] text-[var(--teal-deep)]">Ver ficha</button>
-          <button
-            onClick={onAdd}
-            disabled={inCart}
-            className="flex-1 text-xs py-2 rounded-full bg-[var(--terracotta)] text-white disabled:bg-emerald-600 disabled:opacity-90"
-          >
-            {inCart ? "Añadido" : "Solicitar"}
-          </button>
+          <div className="flex gap-2 w-full">
+            <button
+              onClick={onAdd}
+              disabled={inCart}
+              className="flex-1 text-xs py-2 rounded-full bg-[var(--terracotta)] text-white disabled:bg-emerald-600 disabled:opacity-90"
+            >
+              {inCart ? "Añadido" : "Solicitar"}
+            </button>
+            <button
+              onClick={onFav}
+              className={`px-2.5 rounded-full border border-[var(--border)] flex items-center justify-center transition-colors ${
+                isFav ? "text-[var(--terracotta)] bg-red-50 border-[var(--terracotta)]" : "text-[var(--teal-deep)] hover:bg-[var(--ivory-2)]"
+              }`}
+            >
+              <Heart className={`w-4 h-4 ${isFav ? "fill-current" : ""}`} />
+            </button>
+          </div>
         </div>
       </div>
     </article>

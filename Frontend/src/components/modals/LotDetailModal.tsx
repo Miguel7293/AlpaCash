@@ -10,6 +10,9 @@ import { useCart } from "@/lib/hooks/useCart";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { AuthRequireModal } from "./AuthRequireModal";
 
+import { useFavorites } from "@/lib/hooks/useFavorites";
+import { toast } from "sonner";
+
 export type DisplayLot = {
   id: string;
   cat: string;
@@ -40,7 +43,8 @@ export function LotDetailModal({ open, onClose, lot }: { open: boolean; onClose:
   const item = lot ?? fallbackLot;
   const { addItem, items } = useCart();
   const added = items.some((cartItem) => cartItem.id === item.id);
-  const [favorite, setFavorite] = useState(false);
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const favorite = item.recordId ? isFavorite(item.recordId) : false;
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const { user } = useAuth();
 
@@ -61,6 +65,18 @@ export function LotDetailModal({ open, onClose, lot }: { open: boolean; onClose:
       recordId: item.recordId,
       productorId: item.productorId,
     });
+  };
+
+  const handleToggleFavorite = () => {
+    if (!user) {
+      setAuthModalOpen(true);
+      return;
+    }
+    if (item.recordId) {
+      toggleFavorite(item.recordId);
+    } else {
+      toast.error("Este lote no se puede guardar como favorito porque no tiene un ID de base de datos.");
+    }
   };
 
   return (
@@ -165,8 +181,8 @@ export function LotDetailModal({ open, onClose, lot }: { open: boolean; onClose:
                       <button onClick={handleAdd} disabled={added} className="flex-1 px-5 py-3.5 rounded-full bg-[var(--ink)] text-[var(--ivory)] flex items-center justify-center gap-2 disabled:opacity-60" style={{ fontWeight: 500 }}>
                         {added ? <><CheckCircle2 className="w-4 h-4" /> Añadido</> : <><ShoppingCart className="w-4 h-4" /> Añadir al carrito</>}
                       </button>
-                      <button onClick={() => setFavorite((prev: boolean) => !prev)} className={`px-4 py-3.5 rounded-full border-2 border-[var(--ink)] ${favorite ? "bg-[var(--terracotta)] text-white" : ""}`}>
-                        <Heart className="w-4 h-4" />
+                      <button onClick={handleToggleFavorite} className={`px-4 py-3.5 rounded-full border-2 border-[var(--ink)] ${favorite ? "bg-[var(--terracotta)] text-white border-[var(--terracotta)]" : "hover:bg-[var(--ivory-2)]"}`}>
+                        <Heart className={`w-4 h-4 ${favorite ? "fill-current" : ""}`} />
                       </button>
                     </div>
 

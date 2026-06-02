@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { Fraunces, Instrument_Serif, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import { CartProvider } from "@/lib/hooks/useCart";
+import { AuthProvider } from "@/lib/providers/AuthProvider";
+import { FavoritesProvider } from "@/lib/providers/FavoritesProvider";
 import "./globals.css";
+
 
 const fontDisplay = Fraunces({
   subsets: ["latin"],
@@ -45,7 +48,11 @@ export default function RootLayout({
       className={`${fontSans.variable} ${fontDisplay.variable} ${fontEditorial.variable} ${fontMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-[var(--ivory)] text-[var(--foreground)]">
-        <CartProvider>{children}</CartProvider>
+        <AuthProvider>
+          <FavoritesProvider>
+            <CartProvider>{children}</CartProvider>
+          </FavoritesProvider>
+        </AuthProvider>
       </body>
     </html>
   );

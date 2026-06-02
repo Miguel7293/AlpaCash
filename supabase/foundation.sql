@@ -569,6 +569,31 @@ create policy "msj_participants_write"
     );
 
 
+-- LOTES_FAVORITOS ───────────────────────────────────────────
+
+create table if not exists public.lotes_favoritos (
+    id          uuid        primary key default gen_random_uuid(),
+    profile_id  uuid        not null references public.profiles(id) on delete cascade,
+    lote_id     uuid        not null references public.lotes_fibra(id) on delete cascade,
+    created_at  timestamptz not null default now(),
+    constraint lotes_favoritos_profile_lote_key unique (profile_id, lote_id)
+);
+
+alter table public.lotes_favoritos enable row level security;
+
+drop policy if exists "lotes_favoritos_select_own" on public.lotes_favoritos;
+create policy "lotes_favoritos_select_own" on public.lotes_favoritos
+  for select using (auth.uid() = profile_id);
+
+drop policy if exists "lotes_favoritos_insert_own" on public.lotes_favoritos;
+create policy "lotes_favoritos_insert_own" on public.lotes_favoritos
+  for insert with check (auth.uid() = profile_id);
+
+drop policy if exists "lotes_favoritos_delete_own" on public.lotes_favoritos;
+create policy "lotes_favoritos_delete_own" on public.lotes_favoritos
+  for delete using (auth.uid() = profile_id);
+
+
 -- ------------------------------------------------------------
 -- 5) SEED: CATEGORIAS_FIBRA
 -- ------------------------------------------------------------
