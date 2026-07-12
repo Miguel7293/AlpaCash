@@ -92,7 +92,7 @@ export function useAuth(): AuthState {
       await supabase.auth.signOut();
     }
     if (typeof window !== "undefined") {
-      window.location.href = "/auth/login";
+      window.location.href = "/";
     }
   }, []);
 

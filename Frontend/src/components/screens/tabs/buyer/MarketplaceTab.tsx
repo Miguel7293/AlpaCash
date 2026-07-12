@@ -6,6 +6,8 @@ import { Search, SlidersHorizontal, ShoppingCart, CheckCircle2 } from "lucide-re
 import { ArtCard, SectionLabel } from "../../DashShell";
 import { FiberBall, StampSeal } from "../../../icons/AlpaIcons";
 import { useCart } from "@/lib/hooks/useCart";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { toast } from "sonner";
 import type { DisplayLot } from "@/components/modals/LotDetailModal";
 import { useMarketplaceLots } from "@/lib/hooks/useDashboardData";
 type Lot = DisplayLot & { color: string; grade: string; certified: boolean };
@@ -14,6 +16,7 @@ type SortKey = "precio-asc" | "precio-desc" | "recientes" | "grado";
 
 export function MarketplaceTab({ onOpenLot }: { onOpenLot?: (lot: DisplayLot) => void }) {
   const { addItem, items } = useCart();
+  const { role } = useAuth();
   const { lots: allLots, loading } = useMarketplaceLots();
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("Todos");
@@ -40,6 +43,13 @@ export function MarketplaceTab({ onOpenLot }: { onOpenLot?: (lot: DisplayLot) =>
   }, [allLots, search, catFilter, originFilter, gradeFilter, sort]);
 
   const handleAdd = (l: Lot) => {
+    // Block admin role before cart add — spec 4.1
+    if (role === "admin") {
+      toast.error("Los administradores no pueden realizar compras.", {
+        description: "Esta función es exclusiva para compradores registrados.",
+      });
+      return;
+    }
     addItem({
       id: l.id,
       cat: l.cat,
@@ -97,7 +107,7 @@ export function MarketplaceTab({ onOpenLot }: { onOpenLot?: (lot: DisplayLot) =>
 
       {loading && (
         <div className="mb-5 rounded-2xl border border-[var(--border)] bg-[var(--ivory)] px-4 py-3 text-sm text-[var(--teal-deep)]">
-          Cargando lotes reales del marketplace…
+          Sincronizando lotes en tiempo real...
         </div>
       )}
 

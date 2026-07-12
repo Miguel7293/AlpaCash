@@ -26,7 +26,11 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
     }
 
     if (role !== "empresa") {
-      setCheckoutError("Solo compradores registrados pueden enviar solicitudes de compra.");
+      setCheckoutError(
+        role === "admin"
+          ? "Los administradores no pueden realizar compras en el marketplace."
+          : "Solo compradores registrados pueden enviar solicitudes de compra."
+      );
       return;
     }
 

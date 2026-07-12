@@ -136,3 +136,16 @@ Prototype/
 # =========================
 Prototype/
 Prototype/*
+
+# =========================
+# Local documentation
+# =========================
+documentacion.md
+
+# =========================
+# Agent and IDE local config/cache (Antigravity/Claude)
+# =========================
+.atl/
+*/.atl/
+.claude/
+*/.claude/

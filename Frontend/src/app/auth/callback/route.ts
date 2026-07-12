@@ -79,8 +79,8 @@ export async function GET(request: NextRequest) {
       }
     }
     // Role row exists (or admin) — account is pending admin activation.
-    await supabase.auth.signOut();
-    return NextResponse.redirect(`${origin}/auth/login?error=cuenta-pendiente`);
+    // Preserve the session and redirect to the dedicated pending page.
+    return NextResponse.redirect(`${origin}/auth/pending`);
   }
 
   const destination = ROLE_TO_ROUTE[profile.rol as Role] ?? "/";

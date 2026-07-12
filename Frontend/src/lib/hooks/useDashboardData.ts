@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { fetchApi } from "@/lib/api/client";
 
 type SupabaseRow = Record<string, unknown>;
 
@@ -60,11 +61,24 @@ export type OfferRecord = {
   counterPrice?: number;
 };
 
+/** Raw shape returned by GET /api/admin/users */
+export type AdminUserDetail = {
+  id: string;
+  nombre: string;
+  email: string;
+  rol: string;
+  estado: string;
+  created_at: string;
+};
+
+/** Normalized record used throughout the frontend */
 export type AdminUserRecord = {
   id: string;
   name: string;
+  email: string;
   role: string;
   status: string;
+  createdAt: string;
 };
 
 export type CreditRecord = {
@@ -415,37 +429,86 @@ export function useOffers() {
   return { offers, loading, setOffers };
 }
 
-export function useAdminUsers() {
+/**
+ * Fetches users from the backend admin API.
+ *
+ * @param estadoFilter Optional estado to filter by (e.g. "pendiente", "activo").
+ *                     Omit or pass undefined to fetch all users.
+ *
+ * Returns:
+ *   - users / loading / error — list + fetch state
+ *   - mutating / mutationError — in-flight action state
+ *   - updateUserEstado(userId, newEstado) — PATCH /api/admin/users/:id/estado
+ */
+export function useAdminUsers(estadoFilter?: string) {
   const [users, setUsers] = useState<AdminUserRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [mutating, setMutating] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+
     async function load() {
       setLoading(true);
-      const supabase = createClient();
-      const { data, error } = await supabase.from("profiles").select("id,nombre,rol,estado").order("created_at", { ascending: false });
-      if (!cancelled) {
-        if (!error && Array.isArray(data)) {
+      setError(null);
+      const query = estadoFilter ? `?estado=${encodeURIComponent(estadoFilter)}` : "";
+      try {
+        const { users: raw } = await fetchApi<{ users: AdminUserDetail[] }>(
+          `/api/admin/users${query}`
+        );
+        if (!cancelled) {
           setUsers(
-            data.map((row: SupabaseRow, index) => ({
-              id: asString(row.id, `user-${index}`),
-              name: asString(row.nombre, "Usuario"),
-              role: asString(row.rol, "Sin rol"),
-              status: asString(row.estado, "Activo"),
+            raw.map((u) => ({
+              id: u.id,
+              name: u.nombre,
+              email: u.email,
+              role: u.rol,
+              status: u.estado,
+              createdAt: u.created_at,
             }))
           );
+          setLoading(false);
         }
-        setLoading(false);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Error al cargar usuarios");
+          setUsers([]);
+          setLoading(false);
+        }
       }
     }
+
     load();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [estadoFilter]);
 
-  return { users, loading };
+  async function updateUserEstado(userId: string, newEstado: string): Promise<void> {
+    setMutating(true);
+    setMutationError(null);
+    try {
+      await fetchApi(`/api/admin/users/${userId}/estado`, {
+        method: "PATCH",
+        body: JSON.stringify({ estado: newEstado }),
+      });
+      // Optimistic update — avoids a full reload for instant UI feedback
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, status: newEstado } : u))
+      );
+    } catch (err) {
+      setMutationError(
+        err instanceof Error ? err.message : "Error al actualizar estado"
+      );
+      throw err;
+    } finally {
+      setMutating(false);
+    }
+  }
+
+  return { users, loading, error, mutating, mutationError, updateUserEstado };
 }
 
 export function useCredits() {
@@ -713,4 +776,116 @@ export function useVouchers() {
   }, []);
 
   return { vouchers, loading };
+}
+
+// ─── Public marketplace lots (anonymous-safe via backend API) ─────────────────
+// Uses GET /api/marketplace/lotes (supabaseAdmin on backend) instead of the
+// Supabase browser client, because lotes_fibra RLS is `to authenticated` only.
+// Anonymous home-page users cannot query lotes_fibra directly.
+
+export type PublicLotRecord = {
+  id: string;
+  codigo_lote: string | null;
+  peso_libras: number | null;
+  precio_por_libra: number | null;
+  color: string | null;
+  estado: string;
+  /** Aliased from ubicacion_general in the marketplace_lotes_publicos view */
+  region: string | null;
+  /** categorias_fibra.nombre */
+  categoria: string | null;
+  nivel_calidad: number | null;
+  productor_id: string | null;
+  nombre_asociacion: string | null;
+  comunidad: string | null;
+};
+
+export function usePublicMarketplaceLots() {
+  const [lots, setLots] = useState<PublicLotRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await fetchApi<PublicLotRecord[]>("/api/marketplace/lotes");
+        if (!cancelled) {
+          setLots(Array.isArray(data) ? data : []);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : "Error al cargar lotes"
+          );
+          setLots([]);
+          setLoading(false);
+        }
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { lots, loading, error };
+}
+
+// ─── Market prices from backend ───────────────────────────────────────────────
+// Aggregated price stats per fiber category from GET /api/precios.
+// Public endpoint — works for anonymous and authenticated users alike.
+
+export type PriceRow = {
+  /** categorias_fibra.nombre */
+  category: string;
+  /** Average precio_por_libra across completed transactions */
+  avg: number;
+  min: number;
+  max: number;
+  /** Comparison: last-90-day avg vs prior-90-day */
+  trend: "up" | "down" | "flat";
+  txCount: number;
+};
+
+export function useMarketPrices() {
+  const [prices, setPrices] = useState<PriceRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await fetchApi<PriceRow[]>("/api/precios");
+        if (!cancelled) {
+          setPrices(Array.isArray(data) ? data : []);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : "Error al cargar precios"
+          );
+          setPrices([]);
+          setLoading(false);
+        }
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { prices, loading, error };
 }

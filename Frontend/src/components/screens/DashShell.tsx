@@ -1,13 +1,16 @@
+"use client";
+
 import { motion } from "motion/react";
 import { ReactNode, useState } from "react";
 import { ArrowLeft, Bell, Search } from "lucide-react";
 import { useNotifications } from "@/lib/hooks/useDashboardData";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { AccountMenu } from "@/components/shell/AccountMenu";
 
 export function DashShell({
   role,
   title,
   subtitle,
-  accent = "var(--terracotta)",
   onBack,
   children,
   sidebar,
@@ -15,6 +18,8 @@ export function DashShell({
   role: string;
   title: string;
   subtitle: string;
+  /** @deprecated The accent color was used for the legacy "JQ" avatar.
+   *  Kept in props for backward compatibility; currently unused. */
   accent?: string;
   onBack: () => void;
   children: ReactNode;
@@ -23,6 +28,7 @@ export function DashShell({
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const notifications = useNotifications();
+  const { user, nombre, role: userRole, loading: authLoading, signOut } = useAuth();
   return (
     <div className="min-h-screen bg-[var(--ivory)] text-[var(--ink)]">
       <div className="absolute inset-0 grain pointer-events-none opacity-40" />
@@ -64,9 +70,18 @@ export function DashShell({
               <Bell className="w-4 h-4" />
               <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[var(--terracotta)] border-2 border-[var(--ivory)]" />
             </button>
-            <div className="w-10 h-10 rounded-full border-2 border-[var(--ink)] flex items-center justify-center" style={{ background: accent }}>
-              <span className="text-[var(--ivory)] font-display" style={{ fontWeight: 700 }}>JQ</span>
-            </div>
+            {authLoading ? (
+              /* Skeleton while auth resolves — prevents layout shift */
+              <div className="w-10 h-10 rounded-full bg-[var(--paper)] border-2 border-[var(--ink)]/10 animate-pulse" />
+            ) : user && nombre ? (
+              <AccountMenu
+                nombre={nombre}
+                role={userRole}
+                avatarUrl={user.user_metadata?.avatar_url ?? null}
+                onSignOut={signOut}
+                variant="header"
+              />
+            ) : null}
           </div>
         </div>
       </header>

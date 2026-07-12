@@ -125,8 +125,8 @@ export function CompleteProfileForm({
           .single();
           
         if (profile?.estado === "pendiente") {
-          await supabase.auth.signOut();
-          router.push("/auth/login?error=cuenta-pendiente");
+          // Profile creation succeeded — session preserved, go to waiting screen.
+          router.push("/auth/pending");
           return;
         }
       }

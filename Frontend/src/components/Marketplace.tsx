@@ -13,7 +13,9 @@ import { CartDrawer } from "./modals/CartDrawer";
 import { LotDetailModal, type DisplayLot } from "./modals/LotDetailModal";
 import { useMarketplaceLots, type MarketplaceLotRecord } from "@/lib/hooks/useDashboardData";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { AccountMenu } from "@/components/shell/AccountMenu";
 import { AuthRequireModal } from "./modals/AuthRequireModal";
+import { toast } from "sonner";
 
 type Lot = {
   code: string;
@@ -86,7 +88,7 @@ export function Marketplace({ onBack }: { onBack?: () => void }) {
   const [compareOpen, setCompareOpen] = useState(false);
   const { items: cartItems, addItem, count } = useCart();
   const { lots: dbLots, loading } = useMarketplaceLots();
-  const { user } = useAuth();
+  const { user, nombre, role, signOut } = useAuth();
 
   const activeLots = useMemo<LotExt[]>(() => {
     if (dbLots && dbLots.length > 0) {
@@ -116,6 +118,13 @@ export function Marketplace({ onBack }: { onBack?: () => void }) {
   const handleAdd = (l: LotExt) => {
     if (!user) {
       setAuthModalOpen(true);
+      return;
+    }
+    // Block admin role before reaching the cart — spec 4.1
+    if (role === "admin") {
+      toast.error("Los administradores no pueden realizar compras en el marketplace.", {
+        description: "Esta función es exclusiva para compradores registrados.",
+      });
       return;
     }
     if (isInCart(l.code)) return;
@@ -213,6 +222,23 @@ export function Marketplace({ onBack }: { onBack?: () => void }) {
             />
           </div>
           <div className="flex items-center gap-2">
+            {user && nombre ? (
+              <AccountMenu
+                nombre={nombre}
+                role={role}
+                avatarUrl={user.user_metadata?.avatar_url ?? null}
+                onSignOut={signOut}
+                variant="header"
+              />
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => window.location.href = "/auth/login"}
+                className="rounded-full border-[var(--teal-deep)]/30 text-[var(--teal-deep)] hover:bg-[var(--teal-deep)]/5"
+              >
+                Ingresar
+              </Button>
+            )}
             <Button variant="ghost" className="text-[var(--teal-deep)] hover:bg-[var(--ivory-2)] rounded-full px-3">
               <Heart className="w-4 h-4 mr-1.5" /> 4
             </Button>
@@ -304,7 +330,7 @@ export function Marketplace({ onBack }: { onBack?: () => void }) {
           {loading && (
             <div className="mb-5 p-4 rounded-2xl bg-[var(--gold)]/20 border-2 border-[var(--ink)] flex items-center justify-center gap-3 text-sm text-[var(--ink)]">
               <span className="w-2 h-2 rounded-full bg-[var(--terracotta)] animate-ping" />
-              Sincronizando lotes en tiempo real con Supabase...
+              Sincronizando lotes en tiempo real...
             </div>
           )}
 

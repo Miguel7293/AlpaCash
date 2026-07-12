@@ -57,7 +57,7 @@ export default async function CompleteProfilePage() {
       // If still pending admin activation, go directly to login with the
       // activation message rather than bouncing through the dashboard.
       if (existing?.estado === "pendiente") {
-        redirect("/auth/login?error=cuenta-pendiente");
+        redirect("/auth/pending");
       }
       redirect(ROLE_TO_ROUTE[rol]);
     }
