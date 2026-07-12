@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { Plus, ArrowUpRight, Camera, Calendar } from "lucide-react";
@@ -11,6 +11,8 @@ import { PagosTab } from "./tabs/producer/PagosTab";
 import { CapacitacionTab } from "./tabs/producer/CapacitacionTab";
 import { FinanciamientoTab } from "./tabs/producer/FinanciamientoTab";
 import type { DisplayLot } from "../modals/LotDetailModal";
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/hooks/useAuth";
 
 const trend = Array.from({ length: 14 }).map((_, i) => ({ d: `D${i + 1}`, v: +(28 + Math.sin(i / 2) * 2 + i * 0.3).toFixed(2) }));
 
@@ -26,7 +28,118 @@ const offers = [
 ];
 
 export function ProducerDashboard({ onBack, onOpenLot, onNewLot }: { onBack: () => void; onOpenLot: (lot?: DisplayLot) => void; onNewLot: () => void }) {
+  const { user, nombre } = useAuth();
+  const supabase = createClient();
   const [tab, setTab] = useState("inicio");
+  const [stats, setStats] = useState({
+    revenue: 0,
+    activeLots: 0,
+    reservadoLots: 0,
+    rating: 0,
+    ratingCount: 0,
+  });
+
+  useEffect(() => {
+    if (!user) return;
+    const userId = user.id;
+
+    async function loadStats() {
+      try {
+        const { data: prodData } = await supabase
+          .from("productores")
+          .select("id")
+          .eq("profile_id", userId)
+          .single();
+
+        if (!prodData) return;
+        const producerId = prodData.id;
+
+        const { data: lotsData, error: lotsError } = await supabase
+          .from("lotes_fibra")
+          .select("id, estado")
+          .eq("productor_id", producerId);
+
+        if (lotsError) throw lotsError;
+
+        let activeLots = 0;
+        let reservadoLots = 0;
+        const lotIds: string[] = [];
+
+        interface LotItem {
+          id: string;
+          estado: string;
+        }
+
+        if (lotsData) {
+          (lotsData as unknown as LotItem[]).forEach((l) => {
+            lotIds.push(l.id);
+            if (l.estado === "disponible" || l.estado === "reservado") {
+              activeLots++;
+              if (l.estado === "reservado") {
+                reservadoLots++;
+              }
+            }
+          });
+        }
+
+        // Revenue from completed transactions — more accurate than listing price on lots.
+        let revenue = 0;
+        if (lotIds.length > 0) {
+          interface SaleItem {
+            precio_por_libra: number | null;
+            lotes_fibra: { peso_libras: number | null } | { peso_libras: number | null }[] | null;
+          }
+
+          const { data: salesData, error: salesError } = await supabase
+            .from("transacciones")
+            .select("precio_por_libra, lotes_fibra(peso_libras)")
+            .in("lote_id", lotIds)
+            .eq("estado", "completada");
+
+          if (salesError) throw salesError;
+
+          if (salesData) {
+            (salesData as unknown as SaleItem[]).forEach((tx) => {
+              const lotRaw = tx.lotes_fibra;
+              const lot = Array.isArray(lotRaw) ? lotRaw[0] : lotRaw;
+              const lbs = lot ? Number(lot.peso_libras || 0) : 0;
+              revenue += lbs * Number(tx.precio_por_libra || 0);
+            });
+          }
+        }
+
+        let avgRating = 0;
+        let ratingCount = 0;
+        if (lotIds.length > 0) {
+          const { data: ratingsData, error: ratingsError } = await supabase
+            .from("calificaciones")
+            .select("puntaje")
+            .in("lote_id", lotIds);
+
+          if (ratingsError) throw ratingsError;
+
+          if (ratingsData && ratingsData.length > 0) {
+            const totalScore = (ratingsData as { puntaje: number }[]).reduce((sum, r) => sum + r.puntaje, 0);
+            avgRating = totalScore / ratingsData.length;
+            ratingCount = ratingsData.length;
+          }
+        }
+
+        setStats({
+          revenue,
+          activeLots,
+          reservadoLots,
+          rating: avgRating,
+          ratingCount,
+        });
+      } catch (err) {
+        console.error("Error loading producer stats:", err);
+      }
+    }
+
+    loadStats();
+  }, [user, supabase]);
+
   const nav = [
     { key: "inicio", label: "Inicio", icon: <AlpacaHead size={18} /> },
     { key: "lotes", label: "Mis lotes", icon: <LotTag size={18} /> },
@@ -40,7 +153,7 @@ export function ProducerDashboard({ onBack, onOpenLot, onNewLot }: { onBack: () 
   return (
     <DashShell
       role="Productor"
-      title="Buen día, Juana."
+      title={`Buen día, ${nombre || "Productor"}.`}
       subtitle="Tu fibra está pesada, etiquetada y lista. El mercado te está mirando."
       accent="var(--terracotta)"
       onBack={onBack}
@@ -77,10 +190,10 @@ export function ProducerDashboard({ onBack, onOpenLot, onNewLot }: { onBack: () 
       {/* KPIs row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { label: "Ingresos del mes", v: "S/ 3,840", sub: "+18%", icon: <ChartSparkle size={20} />, bg: "var(--gold)" },
-          { label: "Lotes activos", v: "5", sub: "2 en oferta", icon: <LotTag size={20} />, bg: "var(--mint)" },
+          { label: "Ingresos totales", v: `S/ ${stats.revenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, sub: "Vendido", icon: <ChartSparkle size={20} />, bg: "var(--gold)" },
+          { label: "Lotes activos", v: String(stats.activeLots), sub: `${stats.reservadoLots} en reserva`, icon: <LotTag size={20} />, bg: "var(--mint)" },
           { label: "Próxima esquila", v: "12 días", sub: "Cabaña Sur", icon: <ScissorsShear size={20} />, bg: "var(--pink)" },
-          { label: "Calificación", v: "4.9★", sub: "Premium", icon: <StampSeal size={20} />, bg: "var(--gold-soft)" },
+          { label: "Calificación", v: stats.ratingCount > 0 ? `${stats.rating.toFixed(1)}★` : "—", sub: stats.ratingCount > 0 ? `${stats.ratingCount} valoraciones` : "Sin valoraciones aún", icon: <StampSeal size={20} />, bg: "var(--gold-soft)" },
         ].map((k, i) => (
           <motion.div
             key={k.label}

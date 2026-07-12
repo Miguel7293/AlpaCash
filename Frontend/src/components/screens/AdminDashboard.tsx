@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { Pie, PieChart, Cell, ResponsiveContainer, Tooltip, Area, AreaChart, XAxis } from "recharts";
 import { AlertTriangle, Eye, Users, FileText } from "lucide-react";
@@ -9,18 +9,107 @@ import { PoliciesTab } from "./tabs/admin/PoliciesTab";
 import { LogsTab } from "./tabs/admin/LogsTab";
 import { VaultTab } from "./tabs/admin/VaultTab";
 import { AlertsTab } from "./tabs/admin/AlertsTab";
+import { createClient } from "@/lib/supabase/client";
 
-const split = [
-  { name: "Productores", v: 412, c: "#c4593a" },
-  { name: "Compradores", v: 87, c: "#2a7a7c" },
-  { name: "Facilitadores", v: 23, c: "#e8a838" },
-  { name: "Certificadores", v: 11, c: "#5a3a4f" },
-];
 const traffic = Array.from({ length: 24 }).map((_, i) => ({ h: i, v: Math.round(40 + Math.sin(i / 3) * 30 + i * 1.6) }));
 
 export function AdminDashboard({ onBack }: { onBack: () => void }) {
+  const supabase = createClient();
   const [tab, setTab] = useState("inicio");
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalLots: 0,
+  });
+  const [splitData, setSplitData] = useState([
+    { name: "Productores", v: 0, c: "#c4593a" },
+    { name: "Compradores", v: 0, c: "#2a7a7c" },
+    { name: "Financieras", v: 0, c: "#e8a838" },
+    { name: "Administradores", v: 0, c: "#5a3a4f" },
+  ]);
+  const [validationQueue, setValidationQueue] = useState<{
+    id: string;
+    who: string;
+    role: string;
+    st: string;
+  }[]>([]);
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const { data: profiles, error: pError } = await supabase
+          .from("profiles")
+          .select("rol, estado");
+
+        if (pError) throw pError;
+
+        let prodCount = 0;
+        let empCount = 0;
+        let finCount = 0;
+        let admCount = 0;
+        let totalUsers = 0;
+
+        if (profiles) {
+          totalUsers = profiles.length;
+          profiles.forEach((p: { rol: string | null; estado: string | null }) => {
+            if (p.rol === "productor") prodCount++;
+            else if (p.rol === "empresa") empCount++;
+            else if (p.rol === "financiera") finCount++;
+            else if (p.rol === "admin") admCount++;
+          });
+        }
+
+        setSplitData([
+          { name: "Productores", v: prodCount, c: "#c4593a" },
+          { name: "Compradores", v: empCount, c: "#2a7a7c" },
+          { name: "Financieras", v: finCount, c: "#e8a838" },
+          { name: "Administradores", v: admCount, c: "#5a3a4f" },
+        ]);
+
+        const { count: lotesCount, error: lError } = await supabase
+          .from("lotes_fibra")
+          .select("id", { count: "exact", head: true });
+
+        if (lError) throw lError;
+
+        setStats({
+          totalUsers,
+          totalLots: lotesCount || 0,
+        });
+
+        const { data: pendingUsers, error: queueError } = await supabase
+          .from("profiles")
+          .select("id, nombre, rol, estado")
+          .eq("estado", "pendiente")
+          .order("created_at", { ascending: true });
+
+        if (queueError) throw queueError;
+
+        if (pendingUsers) {
+          const roleLabels: Record<string, string> = {
+            productor: "Productor",
+            empresa: "Comprador",
+            financiera: "Financiera",
+            admin: "Administrador",
+          };
+
+          setValidationQueue(
+            pendingUsers.map((u: { id: string; nombre: string; rol: string; estado: string }) => ({
+              id: u.id.slice(0, 8).toUpperCase(),
+              who: u.nombre,
+              role: roleLabels[u.rol] || u.rol,
+              st: "Pendiente validación",
+            }))
+          );
+        }
+      } catch (err) {
+        console.error("Error loading admin stats:", err);
+      }
+    }
+
+    loadStats();
+  }, [supabase]);
+
   const nav = [
     { key: "inicio", label: "Panel", icon: <ChartSparkle size={18} /> },
     { key: "users", label: "Usuarios", icon: <Users className="w-[18px] h-[18px]" /> },
@@ -60,8 +149,8 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
         <>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { l: "Usuarios totales", v: "533", s: "+12 hoy", bg: "var(--pink)" },
-          { l: "Lotes validados", v: "1,284", s: "98.2% OK", bg: "var(--mint)" },
+          { l: "Usuarios totales", v: String(stats.totalUsers), s: "En red", bg: "var(--pink)" },
+          { l: "Lotes en sistema", v: String(stats.totalLots), s: "Trazados", bg: "var(--mint)" },
           { l: "Consentimientos", v: "100%", s: "Activos", bg: "var(--gold)" },
           { l: "Incidentes 24h", v: "0", s: "Sistema OK", bg: "var(--gold-soft)" },
         ].map((k, i) => (
@@ -84,15 +173,15 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
           <div className="h-56">
             <ResponsiveContainer>
               <PieChart>
-                <Pie data={split} dataKey="v" innerRadius={50} outerRadius={80} paddingAngle={4}>
-                  {split.map((s) => <Cell key={s.name} fill={s.c} stroke="#0d1f1e" strokeWidth={2} />)}
+                <Pie data={splitData} dataKey="v" innerRadius={50} outerRadius={80} paddingAngle={4}>
+                  {splitData.map((s) => <Cell key={s.name} fill={s.c} stroke="#0d1f1e" strokeWidth={2} />)}
                 </Pie>
                 <Tooltip contentStyle={{ background: "#0d1f1e", border: "none", color: "#fff", borderRadius: 12 }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
           <div className="space-y-1 mt-2">
-            {split.map((s) => (
+            {splitData.map((s) => (
               <div key={s.name} className="flex items-center gap-2 text-xs">
                 <span className="w-3 h-3 rounded-sm border border-[var(--ink)]" style={{ background: s.c }} />
                 <span className="flex-1">{s.name}</span>
@@ -131,23 +220,25 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
             </div>
           )}
           <div className="space-y-3">
-            {[
-              { id: "USR-1042", who: "Jacinto Mamani", role: "Productor", st: "DNI verificado" },
-              { id: "USR-1043", who: "Textiles Andina", role: "Comprador", st: "RUC en revisión" },
-              { id: "USR-1044", who: "Coop. Maranganí", role: "Productor", st: "Pendiente prueba vida" },
-            ].map((u) => (
-              <ArtCard key={u.id} className="p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-[var(--gold)] border-2 border-[var(--ink)] flex items-center justify-center font-display" style={{ fontWeight: 700 }}>
-                  {u.who[0]}
-                </div>
-                <div className="flex-1">
-                  <div className="font-display" style={{ fontWeight: 600 }}>{u.who}</div>
-                  <div className="text-xs text-[var(--ink)]/60">{u.role} · <span className="font-mono">{u.id}</span></div>
-                </div>
-                <span className="px-3 py-1 rounded-full bg-[var(--paper)] border-2 border-[var(--ink)]/15 text-[10px] font-mono uppercase">{u.st}</span>
-                <button onClick={() => setSelectedUser(u.who)} className="w-9 h-9 rounded-full bg-[var(--ink)] text-[var(--ivory)] flex items-center justify-center"><Eye className="w-4 h-4" /></button>
-              </ArtCard>
-            ))}
+            {validationQueue.length === 0 ? (
+              <div className="text-sm text-[var(--ink)]/50 p-4 border-2 border-dashed border-[var(--ink)]/15 rounded-2xl text-center">
+                No hay usuarios pendientes de validación.
+              </div>
+            ) : (
+              validationQueue.map((u) => (
+                <ArtCard key={u.id} className="p-4 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-[var(--gold)] border-2 border-[var(--ink)] flex items-center justify-center font-display" style={{ fontWeight: 700 }}>
+                    {u.who ? u.who[0] : "?"}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-display" style={{ fontWeight: 600 }}>{u.who}</div>
+                    <div className="text-xs text-[var(--ink)]/60">{u.role} · <span className="font-mono">{u.id}</span></div>
+                  </div>
+                  <span className="px-3 py-1 rounded-full bg-[var(--paper)] border-2 border-[var(--ink)]/15 text-[10px] font-mono uppercase">{u.st}</span>
+                  <button onClick={() => setSelectedUser(u.who)} className="w-9 h-9 rounded-full bg-[var(--ink)] text-[var(--ivory)] flex items-center justify-center"><Eye className="w-4 h-4" /></button>
+                </ArtCard>
+              ))
+            )}
           </div>
         </div>
 

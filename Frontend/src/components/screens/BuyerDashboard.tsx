@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Line, LineChart } from "recharts";
 import { ShoppingCart, Filter, ArrowUpRight, Truck } from "lucide-react";
 import { DashShell, ArtCard, SectionLabel, SideNav } from "./DashShell";
 import { LotTag, ChartSparkle, ReceiptPaper, ShieldWeave, FactorySimple, Compass, FiberBall, ScaleBalance, StampSeal } from "../icons/AlpaIcons";
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/hooks/useAuth";
 import { MarketplaceTab } from "./tabs/buyer/MarketplaceTab";
 import { ComprasTab } from "./tabs/buyer/ComprasTab";
 import { LogisticaTab } from "./tabs/buyer/LogisticaTab";
@@ -27,8 +29,97 @@ const lots = [
 ];
 
 export function BuyerDashboard({ onBack, onOpenLot, onOpenCart }: { onBack: () => void; onOpenLot: (lot?: DisplayLot) => void; onOpenCart: () => void }) {
+  const { user } = useAuth();
+  const supabase = createClient();
   const [tab, setTab] = useState("inicio");
   const { count } = useCart();
+  const [stats, setStats] = useState({
+    totalPurchased: 0,
+    purchaseCount: 0,
+    pendingVouchers: 0,
+    avgScore: 0,
+    ratingsCount: 0,
+  });
+
+  useEffect(() => {
+    if (!user) return;
+    const userId = user.id;
+
+    async function loadStats() {
+      try {
+        const { data: empresaData } = await supabase
+          .from("empresas")
+          .select("id")
+          .eq("profile_id", userId)
+          .single();
+
+        if (!empresaData) return;
+        const empresaId = empresaData.id;
+
+        const { data: txsData, error: txsError } = await supabase
+          .from("transacciones")
+          .select("estado, precio_por_libra, lotes_fibra(peso_libras)")
+          .eq("empresa_id", empresaId);
+
+        if (txsError) throw txsError;
+
+        let totalPurchased = 0;
+        let purchaseCount = 0;
+        let pendingVouchers = 0;
+
+        interface TransactionItem {
+          estado: string;
+          precio_por_libra: number | null;
+          lotes_fibra: { peso_libras: number | null } | { peso_libras: number | null }[] | null;
+        }
+
+        if (txsData) {
+          (txsData as unknown as TransactionItem[]).forEach((tx) => {
+            const lotRaw = tx.lotes_fibra;
+            const lot = Array.isArray(lotRaw) ? lotRaw[0] : lotRaw;
+            const lbs = lot ? Number(lot.peso_libras || 0) : 0;
+            const price = Number(tx.precio_por_libra || 0);
+            const amount = lbs * price;
+
+            if (tx.estado === "completada") {
+              totalPurchased += amount;
+              purchaseCount++;
+            } else if (tx.estado === "en_proceso") {
+              pendingVouchers++;
+            }
+          });
+        }
+
+        const { data: ratingsData, error: ratingsError } = await supabase
+          .from("calificaciones")
+          .select("puntaje")
+          .eq("calificador_id", userId);
+
+        if (ratingsError) throw ratingsError;
+
+        let avgScore = 0;
+        let ratingsCount = 0;
+        if (ratingsData && ratingsData.length > 0) {
+          const totalScore = (ratingsData as { puntaje: number }[]).reduce((sum, r) => sum + r.puntaje, 0);
+          avgScore = totalScore / ratingsData.length;
+          ratingsCount = ratingsData.length;
+        }
+
+        setStats({
+          totalPurchased,
+          purchaseCount,
+          pendingVouchers,
+          avgScore,
+          ratingsCount,
+        });
+      } catch (err) {
+        console.error("Error loading buyer stats:", err);
+      }
+    }
+
+    loadStats();
+  }, [user, supabase]);
+
   const nav = [
     { key: "inicio", label: "Panel", icon: <ChartSparkle size={18} /> },
     { key: "marketplace", label: "Marketplace", icon: <LotTag size={18} /> },
@@ -44,9 +135,9 @@ export function BuyerDashboard({ onBack, onOpenLot, onOpenCart }: { onBack: () =
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
           { l: "Lotes en carrito", v: String(count), s: "Compra activa", bg: "var(--gold)" },
-          { l: "Compras MTD", v: "12", s: "+34%", bg: "var(--mint)" },
-          { l: "Productores activos", v: "47", s: "Puno · Cusco", bg: "var(--pink)" },
-          { l: "Lead time prom.", v: "5.2 d", s: "Mejor: 3d", bg: "var(--gold-soft)" },
+          { l: "Total comprado", v: `S/ ${stats.totalPurchased.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, s: `${stats.purchaseCount} lotes`, bg: "var(--mint)" },
+          { l: "Vales pendientes", v: String(stats.pendingVouchers), s: "En verificación", bg: "var(--pink)" },
+          { l: "Score promedio dado", v: stats.ratingsCount > 0 ? `${stats.avgScore.toFixed(1)}★` : "—", s: stats.ratingsCount > 0 ? `${stats.ratingsCount} calificaciones enviadas` : "Sin calificaciones aún", bg: "var(--gold-soft)" },
         ].map((k, i) => (
           <motion.div key={k.l} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
             <ArtCard className="p-5">

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Wallet, TrendingUp, FileCheck } from "lucide-react";
@@ -9,6 +9,7 @@ import { CreditosTab } from "./tabs/financial/CreditosTab";
 import { VouchersTab } from "./tabs/financial/VouchersTab";
 import { SegurosTab } from "./tabs/financial/SegurosTab";
 import { AuditoriaTab } from "./tabs/financial/AuditoriaTab";
+import { createClient } from "@/lib/supabase/client";
 
 const cashflow = Array.from({ length: 12 }).map((_, i) => ({
   m: ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"][i],
@@ -16,8 +17,94 @@ const cashflow = Array.from({ length: 12 }).map((_, i) => ({
 }));
 
 export function FinancialDashboard({ onBack }: { onBack: () => void }) {
+  const supabase = createClient();
   const [tab, setTab] = useState("inicio");
   const [queueOpen, setQueueOpen] = useState(false);
+  const [stats, setStats] = useState({
+    activePortfolio: 0,
+    activeCreditsCount: 0,
+    totalVouchers: 0,
+    pendingVouchers: 0,
+    scoredProducersCount: 0,
+    pendingEvaluationsCount: 0,
+  });
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const { data: creditsData, error: creditsError } = await supabase
+          .from("evaluaciones_crediticias")
+          .select("estado, monto_solicitado, productor_id, score");
+
+        if (creditsError) throw creditsError;
+
+        let activePortfolio = 0;
+        let activeCreditsCount = 0;
+        let pendingEvaluationsCount = 0;
+        const scoredProducersSet = new Set<string>();
+
+        interface CreditItem {
+          estado: string;
+          monto_solicitado: number | null;
+          productor_id: string | null;
+          score: number | null;
+        }
+
+        if (creditsData) {
+          (creditsData as unknown as CreditItem[]).forEach((c) => {
+            if (c.estado === "aprobado" || c.estado === "desembolsado") {
+              // Only count genuinely active (approved + disbursed) credits.
+              // "completada" = closed/repaid — not part of the active portfolio.
+              activePortfolio += Number(c.monto_solicitado || 0);
+              activeCreditsCount++;
+            } else if (c.estado === "en_evaluacion" || c.estado === "pendiente") {
+              pendingEvaluationsCount++;
+            }
+            if (c.productor_id && c.score !== null) {
+              scoredProducersSet.add(c.productor_id);
+            }
+          });
+        }
+
+        const { data: txsData, error: txsError } = await supabase
+          .from("transacciones")
+          .select("estado");
+
+        if (txsError) throw txsError;
+
+        let totalVouchers = 0;
+        let pendingVouchers = 0;
+
+        interface TransactionItem {
+          estado: string;
+        }
+
+          if (txsData) {
+            totalVouchers = txsData.length;
+            (txsData as unknown as TransactionItem[]).forEach((tx) => {
+              // Schema states: en_proceso | completada | cancelada — "pendiente" does not exist.
+              if (tx.estado === "en_proceso") {
+                pendingVouchers++;
+              }
+            });
+          }
+
+        setStats({
+          activePortfolio,
+          activeCreditsCount,
+          totalVouchers,
+          pendingVouchers,
+          scoredProducersCount: scoredProducersSet.size,
+          pendingEvaluationsCount,
+        });
+      } catch (err) {
+        console.error("Error loading financial stats:", err);
+      }
+    }
+
+    loadStats();
+  }, [supabase]);
+
   const nav = [
     { key: "inicio", label: "Panel", icon: <ChartSparkle size={18} /> },
     { key: "scoring", label: "Scoring productor", icon: <ScaleBalance size={18} /> },
@@ -64,10 +151,10 @@ export function FinancialDashboard({ onBack }: { onBack: () => void }) {
         <>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { l: "Cartera activa", v: "S/ 482k", s: "+8.4%", bg: "var(--gold)" },
-          { l: "Vouchers emitidos", v: "1,209", s: "S/ 38/lb prom.", bg: "var(--mint)" },
-          { l: "Default rate", v: "1.8%", s: "Bajo promedio", bg: "var(--pink)" },
-          { l: "Productores scoreados", v: "284", s: "Cobertura 67%", bg: "var(--gold-soft)" },
+          { l: "Cartera activa · plataforma", v: `S/ ${(stats.activePortfolio / 1000).toFixed(1)}k`, s: `${stats.activeCreditsCount} aprobados`, bg: "var(--gold)" },
+          { l: "Transacciones · plataforma", v: String(stats.totalVouchers), s: `${stats.pendingVouchers} en proceso`, bg: "var(--mint)" },
+          { l: "Default rate (ref.)", v: "1.8%", s: "Referencia sectorial", bg: "var(--pink)" },
+          { l: "Productores scoreados · plataforma", v: String(stats.scoredProducersCount), s: "Con score activo", bg: "var(--gold-soft)" },
         ].map((k, i) => (
           <motion.div key={k.l} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
             <ArtCard className="p-5">
@@ -105,20 +192,15 @@ export function FinancialDashboard({ onBack }: { onBack: () => void }) {
 
         <ArtCard className="p-5 bg-[var(--gold)]/30">
           <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--ink)]/60">Acción ahora</div>
-          <div className="font-display text-2xl mt-2" style={{ fontWeight: 600 }}>14 solicitudes</div>
-          <div className="text-sm text-[var(--ink)]/70 mt-1">esperan tu evaluación esta semana.</div>
-          <div className="mt-4 space-y-2">
-            {[
-              { n: "Asoc. Tinta", a: "S/ 12,400" },
-              { n: "Cabaña Sur", a: "S/ 8,200" },
-              { n: "Coop. Maranganí", a: "S/ 18,900" },
-            ].map((s) => (
-              <div key={s.n} className="flex items-center justify-between p-2 rounded-xl bg-[var(--ivory)] border border-[var(--ink)]/10">
-                <span className="text-sm" style={{ fontWeight: 500 }}>{s.n}</span>
-                <span className="font-mono text-xs">{s.a}</span>
-              </div>
-            ))}
+          <div className="font-display text-2xl mt-2" style={{ fontWeight: 600 }}>{stats.pendingEvaluationsCount} solicitudes</div>
+          <div className="text-sm text-[var(--ink)]/70 mt-1">
+            {stats.pendingEvaluationsCount === 1 ? "solicitud pendiente de evaluación." : "solicitudes pendientes de evaluación."}
           </div>
+          {stats.pendingEvaluationsCount > 0 && (
+            <div className="mt-4 p-3 rounded-xl bg-[var(--ivory)] border border-[var(--ink)]/10 text-xs text-[var(--ink)]/70">
+              Revisá el detalle completo en la pestaña <span className="font-mono font-semibold">Pre-financiamiento</span>.
+            </div>
+          )}
           <button onClick={() => setQueueOpen((prev) => !prev)} className="mt-4 w-full px-4 py-3 rounded-full bg-[var(--ink)] text-[var(--ivory)] text-sm flex items-center justify-center gap-2" style={{ fontWeight: 500 }}>
             Revisar cola <TrendingUp className="w-4 h-4" />
           </button>
