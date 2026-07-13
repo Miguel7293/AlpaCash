@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
 import { TrendingUp, TrendingDown, Activity, Circle } from "lucide-react";
+import { useLanguage } from "@/lib/providers/LanguageProvider";
 
 type Point = { t: number; v: number };
 
@@ -24,6 +25,7 @@ const SECONDARY = [
 ];
 
 export function LivePriceTicker() {
+  const { t } = useLanguage();
   const [range, setRange] = useState("1D");
   const base = 32.5;
   const [data, setData] = useState<Point[]>(() => seed(40, base));
@@ -97,7 +99,7 @@ export function LivePriceTicker() {
               <span className="absolute inline-flex h-2 w-2 rounded-full bg-emerald-400 opacity-75 animate-ping" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
             </span>
-            <span className="text-[var(--gold-soft)] tracking-wide" style={{ fontWeight: 500 }}>EN VIVO · MERCADO</span>
+            <span className="text-[var(--gold-soft)] tracking-wide" style={{ fontWeight: 500 }}>{t.ticker.live}</span>
           </div>
           <div className="flex-1 overflow-hidden">
             <div className="flex gap-6 whitespace-nowrap animate-[ticker_30s_linear_infinite]">
@@ -120,7 +122,7 @@ export function LivePriceTicker() {
         {/* left: identity + price */}
         <div className="lg:col-span-4">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-[var(--gold-soft)]">
-            <Activity className="w-3 h-3" /> Fibra Baby Alpaca · Mercado PE
+            <Activity className="w-3 h-3" /> {t.ticker.asset}
           </div>
           <div className="mt-1.5 flex items-baseline gap-3">
             <div className="text-4xl tracking-tight" style={{ fontWeight: 600 }}>
@@ -133,12 +135,12 @@ export function LivePriceTicker() {
             <span style={{ fontWeight: 500 }}>
               {stats.up ? "+" : ""}{stats.change.toFixed(2)} ({stats.pct.toFixed(2)}%)
             </span>
-            <span className="text-[var(--ivory)]/50">hoy</span>
+            <span className="text-[var(--ivory)]/50">{t.ticker.today}</span>
           </div>
           <div className="mt-4 grid grid-cols-3 gap-2 text-[11px]">
-            <Stat label="Máx" value={`S/ ${stats.high.toFixed(2)}`} />
-            <Stat label="Mín" value={`S/ ${stats.low.toFixed(2)}`} />
-            <Stat label="Tx 24h" value={String(120 + (tick % 9))} />
+            <Stat label={t.ticker.max} value={`S/ ${stats.high.toFixed(2)}`} />
+            <Stat label={t.ticker.min} value={`S/ ${stats.low.toFixed(2)}`} />
+            <Stat label={t.ticker.txToday} value={String(120 + (tick % 9))} />
           </div>
         </div>
 
@@ -156,7 +158,7 @@ export function LivePriceTicker() {
               <Tooltip
                 contentStyle={{ background: "#0f3739", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11, color: "white" }}
                 labelFormatter={(t) => new Date(t as number).toLocaleTimeString()}
-                formatter={(v: number) => [`S/ ${v.toFixed(2)}`, "Precio"]}
+                formatter={(v: number) => [`S/ ${v.toFixed(2)}`, t.ticker.price]}
                 cursor={{ stroke: "rgba(255,255,255,0.2)" }}
               />
               <Area
@@ -187,7 +189,7 @@ export function LivePriceTicker() {
           </div>
           <div className="text-[10px] text-[var(--ivory)]/50 flex items-center gap-1.5">
             <Circle className="w-2 h-2 fill-emerald-400 text-emerald-400" />
-            Actualizado · ahora
+            {t.ticker.updated}
           </div>
         </div>
       </div>

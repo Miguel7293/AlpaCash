@@ -7,22 +7,16 @@ import {
   usePublicMarketplaceLots,
   type PublicLotRecord,
 } from "@/lib/hooks/useDashboardData";
+import { useLanguage } from "@/lib/providers/LanguageProvider";
 
 // ─── Display types ────────────────────────────────────────────
 
-type Quality = "Validada" | "En revisión" | "Certificable";
-type LotStatus = "Disponible" | "Reservado" | "En validación";
+type Quality = "validated" | "review" | "certifiable";
 
 const qualityStyles: Record<Quality, string> = {
-  Validada: "bg-emerald-50 text-emerald-700 border-emerald-100",
-  "En revisión": "bg-amber-50 text-amber-700 border-amber-100",
-  Certificable: "bg-sky-50 text-sky-700 border-sky-100",
-};
-
-const statusDot: Record<LotStatus, string> = {
-  Disponible: "bg-emerald-500",
-  Reservado: "bg-amber-500",
-  "En validación": "bg-sky-500",
+  validated: "bg-emerald-50 text-emerald-700 border-emerald-100",
+  review: "bg-amber-50 text-amber-700 border-amber-100",
+  certifiable: "bg-sky-50 text-sky-700 border-sky-100",
 };
 
 // ─── Category → stock image mapping ──────────────────────────
@@ -49,9 +43,9 @@ const FALLBACK_IMAGE =
 // ─── Mapping helpers ─────────────────────────────────────────
 
 function toQuality(nivel: number | null): Quality {
-  if (nivel !== null && nivel <= 2) return "Validada";
-  if (nivel !== null && nivel === 3) return "Certificable";
-  return "En revisión";
+  if (nivel !== null && nivel <= 2) return "validated";
+  if (nivel !== null && nivel === 3) return "certifiable";
+  return "review";
 }
 
 type DisplayLot = {
@@ -63,7 +57,6 @@ type DisplayLot = {
   qty: string;
   region: string;
   price: string;
-  status: LotStatus;
 };
 
 function toDisplayLot(lot: PublicLotRecord): DisplayLot {
@@ -77,7 +70,6 @@ function toDisplayLot(lot: PublicLotRecord): DisplayLot {
     qty: `${Math.round(lot.peso_libras ?? 0)} lb`,
     region: lot.region ?? "Puno",
     price: `S/ ${(lot.precio_por_libra ?? 0).toFixed(2)} / lb`,
-    status: "Disponible",
   };
 }
 
@@ -104,8 +96,15 @@ function LotCardSkeleton() {
 // ─── Component ────────────────────────────────────────────────
 
 export function PublicMarketplace({ onExplore }: { onExplore?: () => void }) {
+  const { t } = useLanguage();
   const { lots, loading, error } = usePublicMarketplaceLots();
   const displayLots = lots.slice(0, 4).map(toDisplayLot);
+
+  const qualityLabels: Record<Quality, string> = {
+    validated: t.marketplace.qualityValidated,
+    review: t.marketplace.qualityReview,
+    certifiable: t.marketplace.qualityCertifiable,
+  };
 
   return (
     <section id="marketplace" className="py-24 bg-[var(--ivory)]">
@@ -114,17 +113,16 @@ export function PublicMarketplace({ onExplore }: { onExplore?: () => void }) {
         <div className="flex items-end justify-between flex-wrap gap-4 mb-10">
           <div className="max-w-2xl">
             <div className="text-xs uppercase tracking-[0.18em] text-[var(--terracotta)]">
-              Marketplace visual
+              {t.marketplace.eyebrow}
             </div>
             <h2
               className="mt-3 text-3xl sm:text-4xl tracking-tight text-[var(--teal-deep)]"
               style={{ fontWeight: 600, lineHeight: 1.15 }}
             >
-              Lotes con identidad, no productos sin historia.
+              {t.marketplace.title}
             </h2>
             <p className="mt-4 text-[var(--teal-deep)]/70 leading-relaxed">
-              Vista pública limitada. Los detalles completos (productor, contacto, ubicación exacta) se liberan solo a
-              compradores verificados, bajo solicitud formal y consentimiento del productor.
+              {t.marketplace.desc}
             </p>
           </div>
           <Button
@@ -132,7 +130,7 @@ export function PublicMarketplace({ onExplore }: { onExplore?: () => void }) {
             variant="ghost"
             className="text-[var(--teal-deep)] hover:bg-white rounded-full"
           >
-            Explorar todos los lotes <ArrowRight className="ml-1 w-4 h-4" />
+            {t.marketplace.exploreAll} <ArrowRight className="ml-1 w-4 h-4" />
           </Button>
         </div>
 
@@ -141,7 +139,7 @@ export function PublicMarketplace({ onExplore }: { onExplore?: () => void }) {
           <div className="flex items-center justify-center gap-2 py-16 text-[var(--muted-foreground)]">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span className="text-sm">
-              No se pudieron cargar los lotes en este momento.
+              {t.marketplace.errorLoad}
             </span>
           </div>
         ) : loading ? (
@@ -152,7 +150,7 @@ export function PublicMarketplace({ onExplore }: { onExplore?: () => void }) {
           </div>
         ) : displayLots.length === 0 ? (
           <div className="flex items-center justify-center py-16 text-[var(--muted-foreground)]">
-            <span className="text-sm">No hay lotes disponibles en este momento.</span>
+            <span className="text-sm">{t.marketplace.empty}</span>
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -174,7 +172,7 @@ export function PublicMarketplace({ onExplore }: { onExplore?: () => void }) {
                     {l.category}
                   </div>
                   <div className="absolute top-3 right-3 px-2 py-1 rounded-full bg-[var(--teal-deep)]/85 text-[10px] text-[var(--ivory)] flex items-center gap-1 backdrop-blur">
-                    <Lock className="w-3 h-3" /> Datos protegidos
+                    <Lock className="w-3 h-3" /> {t.marketplace.protectedData}
                   </div>
                 </div>
 
@@ -184,21 +182,21 @@ export function PublicMarketplace({ onExplore }: { onExplore?: () => void }) {
                       className="text-[var(--teal-deep)]"
                       style={{ fontWeight: 600 }}
                     >
-                      Lote {l.code}
+                      {t.marketplace.lot} {l.code}
                     </div>
                     <span
                       className={`text-[10px] px-2 py-0.5 rounded-full border ${qualityStyles[l.quality]}`}
                     >
-                      {l.quality}
+                      {qualityLabels[l.quality]}
                     </span>
                   </div>
 
                   <dl className="mt-3 grid grid-cols-2 gap-y-2 text-xs">
-                    <dt className="text-[var(--muted-foreground)]">Color</dt>
+                    <dt className="text-[var(--muted-foreground)]">{t.marketplace.color}</dt>
                     <dd className="text-right text-[var(--teal-deep)]">{l.color}</dd>
-                    <dt className="text-[var(--muted-foreground)]">Cantidad</dt>
+                    <dt className="text-[var(--muted-foreground)]">{t.marketplace.qty}</dt>
                     <dd className="text-right text-[var(--teal-deep)]">{l.qty}</dd>
-                    <dt className="text-[var(--muted-foreground)]">Origen</dt>
+                    <dt className="text-[var(--muted-foreground)]">{t.marketplace.origin}</dt>
                     <dd className="text-right text-[var(--teal-deep)] flex items-center justify-end gap-1">
                       <MapPin className="w-3 h-3 text-[var(--terracotta)]" />
                       {l.region}
@@ -208,7 +206,7 @@ export function PublicMarketplace({ onExplore }: { onExplore?: () => void }) {
                   <div className="mt-4 pt-4 border-t border-[var(--border)] flex items-end justify-between">
                     <div>
                       <div className="text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">
-                        Precio ref. mercado
+                        {t.marketplace.refPrice}
                       </div>
                       <div
                         className="text-[var(--teal-deep)]"
@@ -218,10 +216,8 @@ export function PublicMarketplace({ onExplore }: { onExplore?: () => void }) {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 text-xs text-[var(--teal-deep)]/80">
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${statusDot[l.status]}`}
-                      />{" "}
-                      {l.status}
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{" "}
+                      {t.marketplace.statusAvailable}
                     </div>
                   </div>
 
@@ -229,7 +225,7 @@ export function PublicMarketplace({ onExplore }: { onExplore?: () => void }) {
                     onClick={onExplore}
                     className="mt-4 w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-full bg-[var(--ivory-2)] hover:bg-[var(--gold-soft)]/40 text-[var(--teal-deep)] text-sm transition-colors"
                   >
-                    <BadgeCheck className="w-4 h-4" /> Ver información general
+                    <BadgeCheck className="w-4 h-4" /> {t.marketplace.viewInfo}
                   </button>
                 </div>
               </article>
@@ -238,7 +234,7 @@ export function PublicMarketplace({ onExplore }: { onExplore?: () => void }) {
         )}
 
         <p className="mt-6 text-xs text-[var(--muted-foreground)] text-center">
-          Detalles completos disponibles para empresas verificadas. Solicita acceso desde tu cuenta de comprador.
+          {t.marketplace.footNote}
         </p>
       </div>
     </section>

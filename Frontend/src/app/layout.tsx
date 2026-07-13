@@ -3,6 +3,7 @@ import { Fraunces, Instrument_Serif, Space_Grotesk, JetBrains_Mono } from "next/
 import { CartProvider } from "@/lib/hooks/useCart";
 import { AuthProvider } from "@/lib/providers/AuthProvider";
 import { FavoritesProvider } from "@/lib/providers/FavoritesProvider";
+import { LanguageProvider } from "@/lib/providers/LanguageProvider";
 import "./globals.css";
 
 
@@ -48,11 +49,13 @@ export default function RootLayout({
       className={`${fontSans.variable} ${fontDisplay.variable} ${fontEditorial.variable} ${fontMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-[var(--ivory)] text-[var(--foreground)]">
-        <AuthProvider>
-          <FavoritesProvider>
-            <CartProvider>{children}</CartProvider>
-          </FavoritesProvider>
-        </AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <FavoritesProvider>
+              <CartProvider>{children}</CartProvider>
+            </FavoritesProvider>
+          </AuthProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

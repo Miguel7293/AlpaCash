@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { Login } from "@/components/auth/Login";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { ROLE_TO_ROUTE } from "@/lib/supabase/types";
 
@@ -15,10 +15,17 @@ import { ROLE_TO_ROUTE } from "@/lib/supabase/types";
  * Pattern: render null while loading or while an active session exists
  * (redirect fires in the effect). The Login form only renders once we
  * know with certainty that no session is active.
+ *
+ * The landing page sends intent here first (e.g. /auth/login?role=producer)
+ * so an already-registered visitor logs straight into their dashboard via
+ * the redirect above. Only a visitor without an account needs "Crear cuenta",
+ * so that link carries the same role through to the registration form.
  */
 export function LoginClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, role, loading } = useAuth();
+  const intendedRole = searchParams.get("role");
 
   useEffect(() => {
     if (!loading && user) {
@@ -34,7 +41,9 @@ export function LoginClient() {
   return (
     <Login
       onBack={() => router.push("/")}
-      onRegister={() => router.push("/auth/register")}
+      onRegister={() =>
+        router.push(intendedRole ? `/auth/register?role=${encodeURIComponent(intendedRole)}` : "/auth/register")
+      }
     />
   );
 }

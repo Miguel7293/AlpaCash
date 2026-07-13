@@ -1,7 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
+import { WebSocket } from "ws";
 
 dotenv.config();
+
+// Node 20 has no global WebSocket; @supabase/realtime-js requires one to exist
+// at client construction time even though this backend never uses realtime.
+if (typeof globalThis.WebSocket === "undefined") {
+  (globalThis as unknown as { WebSocket: typeof WebSocket }).WebSocket = WebSocket;
+}
 
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabasePublishableKey = process.env.SUPABASE_PUBLISHABLE_KEY!;

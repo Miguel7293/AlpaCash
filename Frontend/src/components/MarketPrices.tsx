@@ -6,6 +6,7 @@ import {
   useMarketPrices,
   type PriceRow,
 } from "@/lib/hooks/useDashboardData";
+import { useLanguage } from "@/lib/providers/LanguageProvider";
 
 // ─── Display row type ─────────────────────────────────────────
 
@@ -93,6 +94,7 @@ function MobileCardSkeleton() {
 // ─── Component ────────────────────────────────────────────────
 
 export function MarketPrices() {
+  const { t } = useLanguage();
   const { prices, loading, error } = useMarketPrices();
   const rows: DisplayRow[] = prices.map(toDisplayRow);
 
@@ -103,23 +105,23 @@ export function MarketPrices() {
         <div className="grid lg:grid-cols-12 gap-10 items-end mb-10">
           <div className="lg:col-span-7">
             <div className="text-xs uppercase tracking-[0.18em] text-[var(--terracotta)]">
-              Precios de mercado
+              {t.prices.eyebrow}
             </div>
             <h2
               className="mt-3 text-3xl sm:text-4xl tracking-tight text-[var(--teal-deep)]"
               style={{ fontWeight: 600, lineHeight: 1.15 }}
             >
-              Negocia con datos, no con suposiciones.
+              {t.prices.title}
             </h2>
             <p className="mt-4 text-[var(--teal-deep)]/70 leading-relaxed max-w-2xl">
-              Precio promedio, rango y tendencia por categoría, calculados con transacciones verificadas dentro de AlpaCash.
+              {t.prices.desc}
             </p>
           </div>
           <div className="lg:col-span-5 bg-white rounded-2xl border border-[var(--border)] p-4 flex items-start gap-3">
             <Info className="w-4 h-4 mt-0.5 text-[var(--teal-500)] shrink-0" />
             <p className="text-xs text-[var(--teal-deep)]/80 leading-relaxed">
-              Precio referencial basado en transacciones verificadas.{" "}
-              <strong>No representa precio garantizado</strong>. Actualizado semanalmente.
+              {t.prices.infoNote1}{" "}
+              <strong>{t.prices.infoNoteBold}</strong>. {t.prices.infoNote2}
             </p>
           </div>
         </div>
@@ -128,7 +130,7 @@ export function MarketPrices() {
         {error ? (
           <div className="bg-white rounded-3xl border border-[var(--border)] flex items-center justify-center gap-2 py-14 text-[var(--muted-foreground)]">
             <AlertCircle className="w-4 h-4 shrink-0" />
-            <span className="text-sm">No se pudieron cargar los precios en este momento.</span>
+            <span className="text-sm">{t.prices.errorLoad}</span>
           </div>
         ) : (
           <div className="bg-white rounded-3xl border border-[var(--border)] overflow-hidden">
@@ -136,12 +138,12 @@ export function MarketPrices() {
             <table className="hidden md:table w-full text-sm">
               <thead className="bg-[var(--ivory)] text-[var(--muted-foreground)]">
                 <tr className="text-left">
-                  <th className="px-6 py-4 font-normal">Categoría</th>
-                  <th className="px-6 py-4 font-normal">Promedio</th>
-                  <th className="px-6 py-4 font-normal">Rango</th>
-                  <th className="px-6 py-4 font-normal">Tendencia</th>
-                  <th className="px-6 py-4 font-normal">Histórico 6m</th>
-                  <th className="px-6 py-4 font-normal text-right">Transacciones</th>
+                  <th className="px-6 py-4 font-normal">{t.prices.colCategory}</th>
+                  <th className="px-6 py-4 font-normal">{t.prices.colAvg}</th>
+                  <th className="px-6 py-4 font-normal">{t.prices.colRange}</th>
+                  <th className="px-6 py-4 font-normal">{t.prices.colTrend}</th>
+                  <th className="px-6 py-4 font-normal">{t.prices.colHistory}</th>
+                  <th className="px-6 py-4 font-normal text-right">{t.prices.colTx}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
@@ -188,7 +190,7 @@ export function MarketPrices() {
                                   }}
                                   formatter={(v: number) => [
                                     `S/ ${v.toFixed(1)}`,
-                                    "Precio",
+                                    t.ticker.price,
                                   ]}
                                 />
                                 <Line
@@ -237,7 +239,7 @@ export function MarketPrices() {
                         <div className="text-xs text-[var(--muted-foreground)]">/ lb</div>
                       </div>
                       <div className="mt-1 text-xs text-[var(--muted-foreground)]">
-                        Rango {r.range} · {r.tx} transacciones
+                        {t.prices.rangeLabel} {r.range} · {r.tx} {t.prices.txLabel}
                       </div>
                     </div>
                   ))}

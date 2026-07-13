@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Menu, X, Globe, Search } from "lucide-react";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { useLanguage } from "@/lib/providers/LanguageProvider";
+import { LOCALES } from "@/lib/i18n/translations";
 import { AccountMenu } from "./AccountMenu";
 
 export type NavTarget = "landing" | "marketplace" | "demo" | "prices" | "trust" | "profile" | "login" | "register";
@@ -20,9 +22,9 @@ export function PillNavbar({
   onRegister: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [lang, setLang] = useState<"ES" | "EN">("ES");
   const [scrolled, setScrolled] = useState(false);
   const { user, nombre, role, loading, signOut } = useAuth();
+  const { locale, setLocale, t } = useLanguage();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -32,11 +34,18 @@ export function PillNavbar({
   }, []);
 
   const links: { key: NavTarget; label: string }[] = [
-    { key: "marketplace", label: lang === "ES" ? "Marketplace" : "Market" },
-    { key: "demo", label: lang === "ES" ? "Roles" : "Roles" },
-    { key: "prices", label: lang === "ES" ? "Precios" : "Prices" },
-    { key: "trust", label: lang === "ES" ? "Confianza" : "Trust" },
+    { key: "marketplace", label: t.nav.marketplace },
+    { key: "demo", label: t.nav.roles },
+    { key: "prices", label: t.nav.prices },
+    { key: "trust", label: t.nav.trust },
   ];
+
+  const roleLabels: Record<string, string> = {
+    admin: t.nav.roleAdmin,
+    productor: t.nav.roleProducer,
+    empresa: t.nav.roleBuyer,
+    financiera: t.nav.roleFinancial,
+  };
 
   return (
     <>
@@ -92,19 +101,19 @@ export function PillNavbar({
               <Search className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-1 px-1 py-1 rounded-full bg-[var(--ivory)] border border-[var(--ink)]/15">
-              {(["ES", "EN"] as const).map((l) => (
+              {LOCALES.map((l) => (
                 <button
-                  key={l}
-                  onClick={() => setLang(l)}
+                  key={l.code}
+                  onClick={() => setLocale(l.code)}
+                  title={l.nativeName}
                   className={`px-2.5 py-1 rounded-full text-xs transition-colors ${
-                    lang === l ? "bg-[var(--ink)] text-[var(--ivory)]" : "text-[var(--ink)]/70"
+                    locale === l.code ? "bg-[var(--ink)] text-[var(--ivory)]" : "text-[var(--ink)]/70"
                   }`}
                   style={{ fontWeight: 500 }}
                 >
-                  {l}
+                  {l.code.toUpperCase()}
                 </button>
               ))}
-              <span className="px-2 text-[9px] text-[var(--ink)]/40 font-mono uppercase tracking-wider">AYM·soon</span>
             </div>
           </div>
         </div>
@@ -159,14 +168,14 @@ export function PillNavbar({
                 className="px-4 py-2 rounded-full text-sm text-[var(--ivory)]/85 hover:text-[var(--ivory)]"
                 style={{ fontWeight: 500 }}
               >
-                Ingresar
+                {t.nav.login}
               </button>
               <button
                 onClick={onRegister}
                 className="px-5 py-2 rounded-full bg-[var(--terracotta)] hover:bg-[var(--terracotta-soft)] text-white text-sm transition-colors"
                 style={{ fontWeight: 600 }}
               >
-                Empezar →
+                {t.nav.start}
               </button>
             </>
           )}
@@ -181,9 +190,9 @@ export function PillNavbar({
           style={{ fontWeight: 500 }}
         >
           {open ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-          <span className="text-sm">Menú</span>
+          <span className="text-sm">{t.nav.menu}</span>
           <span className="w-px h-4 bg-white/20" />
-          <span className="text-sm text-[var(--gold)]" style={{ fontWeight: 600 }}>Empezar</span>
+          <span className="text-sm text-[var(--gold)]" style={{ fontWeight: 600 }}>{t.nav.start.replace(" →", "")}</span>
         </button>
       </div>
 
@@ -213,7 +222,7 @@ export function PillNavbar({
                   <span className="text-sm font-medium text-white">{nombre}</span>
                   {role && (
                     <span className="mt-0.5 text-[10px] px-2 py-0.5 rounded-full" style={{ background: "var(--gold-soft, #F5EFE0)", color: "var(--terracotta, #B24D2A)" }}>
-                      {role === "admin" ? "Administrador" : role === "productor" ? "Productor" : role === "empresa" ? "Comprador empresa" : "Entidad financiera"}
+                      {roleLabels[role]}
                     </span>
                   )}
                 </div>
@@ -221,18 +230,18 @@ export function PillNavbar({
                   onClick={() => { signOut(); setOpen(false); }}
                   className="text-xs text-white/70 hover:text-white px-3 py-1.5 rounded-full border border-white/20"
                 >
-                  Cerrar sesión
+                  {t.nav.signOut}
                 </button>
               </div>
             ) : (
               <>
-                <button onClick={() => { onLogin(); setOpen(false); }} className="py-3 rounded-2xl border border-white/15 text-sm">Ingresar</button>
-                <button onClick={() => { onRegister(); setOpen(false); }} className="py-3 rounded-2xl bg-[var(--terracotta)] text-white text-sm" style={{ fontWeight: 600 }}>Empezar →</button>
+                <button onClick={() => { onLogin(); setOpen(false); }} className="py-3 rounded-2xl border border-white/15 text-sm">{t.nav.login}</button>
+                <button onClick={() => { onRegister(); setOpen(false); }} className="py-3 rounded-2xl bg-[var(--terracotta)] text-white text-sm" style={{ fontWeight: 600 }}>{t.nav.start}</button>
               </>
             )}
           </div>
           <div className="mt-3 flex items-center gap-2 text-[10px] font-mono uppercase text-[var(--ivory)]/40">
-            <Globe className="w-3 h-3" /> ES · EN · AYM próximamente
+            <Globe className="w-3 h-3" /> {t.nav.langHint}
           </div>
         </motion.div>
       )}
