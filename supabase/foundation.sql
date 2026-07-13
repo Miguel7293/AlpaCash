@@ -22,24 +22,10 @@
 
 
 -- ------------------------------------------------------------
--- 0) EXTENSIONS & HELPER FUNCTIONS
+-- 0) EXTENSIONS
 -- ------------------------------------------------------------
 create extension if not exists "pgcrypto";
 create extension if not exists "uuid-ossp";
-
--- Security definer function to avoid infinite recursion in RLS policies
--- when checking if a user is an admin.
-create or replace function public.is_admin()
-returns boolean
-language sql
-security definer
-set search_path = public
-as $$
-  select exists (
-    select 1 from public.profiles
-    where id = auth.uid() and rol = 'admin'
-  );
-$$;
 
 
 -- ------------------------------------------------------------
@@ -189,6 +175,28 @@ create table if not exists public.notificaciones (
     leida       boolean     not null default false,
     created_at  timestamptz not null default now()
 );
+
+
+-- ------------------------------------------------------------
+-- 1a) HELPER FUNCTIONS
+-- ------------------------------------------------------------
+-- Must come AFTER the tables: `language sql` functions are validated
+-- against the catalog at CREATE FUNCTION time (unlike plpgsql, which
+-- resolves names lazily), so public.profiles must already exist.
+
+-- Security definer function to avoid infinite recursion in RLS policies
+-- when checking if a user is an admin.
+create or replace function public.is_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and rol = 'admin'
+  );
+$$;
 
 
 -- ------------------------------------------------------------
