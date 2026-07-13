@@ -34,6 +34,8 @@ export const translations = {
       txToday: "Tx 24h",
       updated: "Actualizado · ahora",
       price: "Precio",
+      avgPrefix: "Promedio de las últimas",
+      avgSuffix: "transacciones",
     },
     hero: {
       editionLabel: "Edición · Vol. 01",
@@ -215,6 +217,8 @@ export const translations = {
       txToday: "24h Tx",
       updated: "Updated · now",
       price: "Price",
+      avgPrefix: "Average of the last",
+      avgSuffix: "transactions",
     },
     hero: {
       editionLabel: "Edition · Vol. 01",
@@ -396,6 +400,8 @@ export const translations = {
       txToday: "24h Rantiy",
       updated: "Musuqchasqa · kunan",
       price: "Chanin",
+      avgPrefix: "Qhipa",
+      avgSuffix: "rantiykunamanta chunka",
     },
     hero: {
       editionLabel: "Qillqasqa · 01 T'aqa",

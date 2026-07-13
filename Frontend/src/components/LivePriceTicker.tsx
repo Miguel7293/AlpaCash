@@ -24,9 +24,11 @@ const SECONDARY = [
   { code: "HUARI", label: "Huarizo", base: 14.0 },
 ];
 
+const TX_COUNT_OPTIONS = [100, 1000] as const;
+
 export function LivePriceTicker() {
   const { t } = useLanguage();
-  const [range, setRange] = useState("1D");
+  const [txCount, setTxCount] = useState<(typeof TX_COUNT_OPTIONS)[number]>(1000);
   const base = 32.5;
   const [data, setData] = useState<Point[]>(() => seed(40, base));
   const [tick, setTick] = useState(0);
@@ -173,19 +175,22 @@ export function LivePriceTicker() {
           </ResponsiveContainer>
         </div>
 
-        {/* timeframe toggles + status */}
+        {/* transaction-count toggle + status */}
         <div className="lg:col-span-2 flex lg:flex-col gap-2 lg:items-end">
           <div className="flex gap-1 bg-white/5 rounded-full p-1 text-[11px] border border-white/10">
-            {["1H", "1D", "1S", "1M", "1A"].map((t) => (
+            {TX_COUNT_OPTIONS.map((n) => (
               <button
-                key={t}
-                onClick={() => setRange(t)}
-                className={`px-2.5 py-1 rounded-full transition-colors ${range === t ? "bg-[var(--gold)] text-[var(--teal-deep)]" : "text-[var(--ivory)]/70 hover:text-[var(--ivory)]"}`}
-                style={{ fontWeight: range === t ? 600 : 400 }}
+                key={n}
+                onClick={() => setTxCount(n)}
+                className={`px-2.5 py-1 rounded-full transition-colors ${txCount === n ? "bg-[var(--gold)] text-[var(--teal-deep)]" : "text-[var(--ivory)]/70 hover:text-[var(--ivory)]"}`}
+                style={{ fontWeight: txCount === n ? 600 : 400 }}
               >
-                {t}
+                {n}
               </button>
             ))}
+          </div>
+          <div className="text-[10px] text-[var(--ivory)]/50 text-right lg:max-w-[140px]">
+            {t.ticker.avgPrefix} {txCount} {t.ticker.avgSuffix}
           </div>
           <div className="text-[10px] text-[var(--ivory)]/50 flex items-center gap-1.5">
             <Circle className="w-2 h-2 fill-emerald-400 text-emerald-400" />
